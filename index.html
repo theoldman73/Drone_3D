@@ -71,11 +71,13 @@
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
+	//--- new camera Main , Camera Position
+    camera.position.set(-2.4,1.2,-0.1);	//0.9, 1.8, 8.5 -2.4,1.2,-1.2
+	// Create cam1 with the specified position	
 	//--- new CAM1
 	// Create cam1 with the specified position
 	const cam1 = new THREE.PerspectiveCamera(75,window.innerWidth / window.innerHeight,0.1,1000);
 	cam1.position.set(3.1, 7.1, 5.5); //--- Info : (0,H,0)
-	//cam1.rotation.z = 5;
 	cam1.lookAt(new THREE.Vector3(-1.0, 1.1, 0)); // Optionally look at the center
 	scene.add(cam1);// Add cam1 to the scene
 	//--- new CAM2
@@ -106,9 +108,6 @@
     directionalLight.position.set(0, 1, 1).normalize();
     scene.add(directionalLight);
 
-    // === Camera Position ===
-    camera.position.set(0.9, 1.8, 8.5);
-
     // === Global Variables ===
     let drone, droneCamera, currentCamera = camera;
     let stadium;
@@ -129,7 +128,7 @@
     secondLoader.load('./models/drone-v3.dae', collada => {
       drone = collada.scene;
       drone.scale.set(0.009, 0.009, 0.009);
-      drone.position.set(-2.4,1.2,-1.2); //--- Info: 0.01, 0.55, 5++0.01, 0.55, 5-2.5,2.5,2.5
+      drone.position.set(-2.4,0.730,-1.9); //--- Info: -2.4,1.2,-1.2
 
 	// === Drone Camera ===
 	droneCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1.0, 15000);
@@ -242,7 +241,7 @@
 		if (drone && document.getElementById('positionDisplay')) {
 			const pos = drone.position;
 			document.getElementById('positionDisplay').textContent =
-			`Drone Position: (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})`;
+			`Drone Position: (${pos.x.toFixed(3)}, ${pos.y.toFixed(3)}, ${pos.z.toFixed(3)})`;
 		}	 
 		
 		// Use current camera
