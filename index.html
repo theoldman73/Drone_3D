@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Three.js Drone Collision Detection</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+    #collisionMessage {
+      display: none;
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #ff3b3b;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-family: Arial, sans-serif;
+      font-size: 18px;
+      z-index: 1000;
+      box-shadow: 0 0 15px rgba(0,0,0,0.5);
+      animation: fade 0.3s ease-in-out;
+    }
+    @keyframes fade {
+      from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Collision Message -->
+  <div id="collisionMessage">Collision Detected!</div>
+	<div id="positionDisplay" style="
+		position: fixed;
+		top: 60px;
+		left: 20px;
+		color: white;
+		background: rgba(0, 0, 0, 0.5);
+		padding: 8px 12px;
+		font-family: monospace;
+		font-size: 14px;
+		z-index: 1000;
+		border-radius: 4px;
+	">
+    Drone Position: (0.0, 0.0, 0.0)
+</div>
+
+<div id="cameraDisplay" style="
+    position: fixed;
+    top: 100px;
+    left: 20px;
+    color: white;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 6px 12px;
+    font-family: monospace;
+    font-size: 14px;
+    z-index: 1000;
+    border-radius: 4px;
+">
+    Current Camera: Main
+</div>
+  <!-- Three.js Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/ColladaLoader.js"></script>
+  <script>
+    // === Scene Setup ===
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+	//--- new CAM1
+	// Create cam1 with the specified position
+	const cam1 = new THREE.PerspectiveCamera(75,window.innerWidth / window.innerHeight,0.1,1000);
+	cam1.position.set(3.1, 7.1, 5.5); //--- Info : (0,H,0)
+	//cam1.rotation.z = 5;
+	cam1.lookAt(new THREE.Vector3(-1.0, 1.1, 0)); // Optionally look at the center
+	scene.add(cam1);// Add cam1 to the scene
+	//--- new CAM2
+	// Create cam1 with the specified position
+	const cam2 = new THREE.PerspectiveCamera(75,window.innerWidth / window.innerHeight,0.1,1000);
+	cam2.position.set(-7.2, 7.1, 6.8); //--- Info : (0,H,0)
+	cam2.lookAt(new THREE.Vector3(1.0, 1.1, 0)); // Optionally look at the center
+	scene.add(cam2);// Add cam1 to the scene	
+	//--- new CAM3
+	// Create cam1 with the specified position
+	const cam3 = new THREE.PerspectiveCamera(75,window.innerWidth / window.innerHeight,0.1,1000);
+	cam3.position.set(-8.0,5.1,-9.2); //--- Info : (0,H,0)
+	cam3.lookAt(new THREE.Vector3(3.1, -4.1, 5.5)); // Optionally look at the center
+	scene.add(cam3);// Add cam1 to the scene
+	//--- new CAM3
+	// Create cam1 with the specified position
+	const cam4 = new THREE.PerspectiveCamera(75,window.innerWidth / window.innerHeight,0.1,1000);
+	cam4.position.set(2.6,5.1,-9.7); //--- Info : (0,H,0)
+	cam4.lookAt(new THREE.Vector3(-3.1, -4.1, 5.5)); // Optionally look at the center
+	scene.add(cam4);// Add cam1 to the scene	
+	//---
+	// Array of available cameras
+	const cameras = [camera, cam1 , cam2 , cam3 , cam4]; // Add cam1 here
+	let currentCameraIndex = 0;		
+    // === Lighting ===
+    scene.add(new THREE.AmbientLight(0x404040));
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    directionalLight.position.set(0, 1, 1).normalize();
+    scene.add(directionalLight);
+
+    // === Camera Position ===
+    camera.position.set(0.9, 1.8, 8.5);
+
+    // === Global Variables ===
+    let drone, droneCamera, currentCamera = camera;
+    let stadium;
+    const originalPosition = new THREE.Vector3();
+
+    // === Load Stadium Model ===
+    const loader = new THREE.ColladaLoader();
+    loader.load('./models/stadium-v6.dae', collada => {
+      stadium = collada.scene;
+      stadium.scale.set(0.1, 0.1, 0.1);
+	  //stadium.position.set(0, -50, 30);
+      stadium.position.set(-2,-2,-2);
+      scene.add(stadium);
+    }, undefined, err => console.error('Stadium load error:', err));
+
+    // === Load Drone Model ===
+    const secondLoader = new THREE.ColladaLoader();
+    secondLoader.load('./models/drone-v3.dae', collada => {
+      drone = collada.scene;
+      drone.scale.set(0.009, 0.009, 0.009);
+      drone.position.set(-2.4,1.2,-1.2); //--- Info: 0.01, 0.55, 5++0.01, 0.55, 5-2.5,2.5,2.5
+
+	// === Drone Camera ===
+	droneCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1.0, 15000);
+	droneCamera.position.set(0, -50, 30);
+	droneCamera.lookAt(new THREE.Vector3(0, 0.5, 0));
+	//droneCamera.lookAt( droneCamera.position);
+	drone.add(droneCamera);
+	// Now add to the camera list
+	cameras.push(droneCamera);
+	
+    scene.add(drone);
+    }, undefined, err => console.error('Drone load error:', err));
+
+    // === Sky Background ===
+    const skyGeometry = new THREE.SphereGeometry(100, 64, 64);
+    const skyTexture = new THREE.TextureLoader().load(
+      './models/sky.jpg',
+      () => renderer.render(scene, currentCamera)
+    );
+    const skyMaterial = new THREE.MeshBasicMaterial({
+      map: skyTexture,
+      side: THREE.BackSide
+    });
+    const skySphere = new THREE.Mesh(skyGeometry, skyMaterial);
+    scene.add(skySphere);
+
+    // === Resize Handler ===
+    window.addEventListener('resize', () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      [camera, droneCamera].forEach(cam => {
+        if (cam) {
+          cam.aspect = w / h;
+          cam.updateProjectionMatrix();
+        }
+      });
+      renderer.setSize(w, h);
+    });
+
+    // === Collision Detection ===
+    function checkCollision(obj) {
+      if (!obj || !stadium) return false;
+      const objBox = new THREE.Box3().setFromObject(obj);
+      const stadiumBox = new THREE.Box3().setFromObject(stadium);
+      return objBox.intersectsBox(stadiumBox);
+    }
+
+    // === Show Collision Message ===
+    function showCollisionMessage() {
+      const msg = document.getElementById('collisionMessage');
+      msg.style.display = 'block';
+      setTimeout(() => msg.style.display = 'none', 2000);
+    }
+
+    // === Keyboard Controls ===
+    document.addEventListener('keydown', event => {
+		const cameraNames = ['Main', 'Cam1', 'Cam2','Cam3', 'cam4' , 'Drone' ];
+		const speed = 0.01;
+		if (!drone) return;
+
+      originalPosition.copy(drone.position);
+
+      switch (event.key) {
+        case 'ArrowUp': drone.position.y += speed; break;
+        case 'ArrowDown': drone.position.y -= speed; break;
+        case 'a':case 'ArrowLeft': drone.position.x -= speed; break;
+        case 'd':case 'ArrowRight': drone.position.x += speed; break;
+        case 'w': case 'W': drone.position.z -= speed; break;
+        case 's': case 'S': drone.position.z += speed; break;
+		
+        case 'c': case 'C':
+			currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+			document.getElementById('cameraDisplay').textContent =`Current Camera: ${cameraNames[currentCameraIndex]}`;			
+          //currentCamera = (currentCamera === camera) ? droneCamera : camera;
+          break;
+        // Rotation Y
+        case 'q': drone.rotation.y += speed; break; // Rotate left
+        case 'e': drone.rotation.y -= speed; break; // Rotate right	  
+        // Rotation Z
+        case 'z': drone.rotation.z += speed; break; // Rotate left
+        case 'x': drone.rotation.z -= speed; break; // Rotate right		
+        // Rotation X
+        case 'v': drone.rotation.x += speed; break; // Rotate left
+        case 'b': drone.rotation.x -= speed; break; // Rotate right			
+      }
+
+      if (checkCollision(drone)) {
+        //drone.position.copy(originalPosition);
+        showCollisionMessage(); // Show warning
+      }
+    });
+
+	window.addEventListener('resize', () => {
+		const width = window.innerWidth;
+		const height = window.innerHeight;
+
+		cameras.forEach(cam => {
+			if (cam) {
+				cam.aspect = width / height;
+				cam.updateProjectionMatrix();
+			}
+		});
+
+		renderer.setSize(width, height);
+	});
+    // === Animation Loop ===
+    function animate() {
+		requestAnimationFrame(animate);
+		// Update position display
+		if (drone && document.getElementById('positionDisplay')) {
+			const pos = drone.position;
+			document.getElementById('positionDisplay').textContent =
+			`Drone Position: (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})`;
+		}	 
+		
+		// Use current camera
+		if (cameras[currentCameraIndex]) {
+			renderer.render(scene, cameras[currentCameraIndex]);
+		}		
+		//--- Info : renderer.render(scene, currentCamera);
+    }
+    animate();
+  </script>
+</body>
+</html>
