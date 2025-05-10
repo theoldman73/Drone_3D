@@ -175,14 +175,7 @@
     // Get references to the speed control elements
     const speedSlider = document.getElementById('speedSlider');
     const speedValue = document.getElementById('speedValue');
-    
-    // Update speed when slider changes
-    speedSlider.addEventListener('input', function() {
-      droneSpeed = parseFloat(this.value);
-      speedValue.textContent = droneSpeed.toFixed(2);
-    });
-
-
+  
     // === Load Stadium Model ===
     const loader = new THREE.ColladaLoader();
     loader.load('./models/stadium-v7.dae', collada => {
@@ -334,12 +327,14 @@
       droneSpeed = parseFloat(this.value);
       speedValue.textContent = droneSpeed.toFixed(2);
     });	
+	
 	// === Keyboard Controls ===
     document.addEventListener('keydown', event => {
       const cameraNames = ['Main', 'Cam1', 'Cam2','Cam3', 'cam4' , 'Drone' ];
       if (!drone) return;
 
       originalPosition.copy(drone.position);
+
 
       switch (event.key) {
         case 'ArrowUp': drone.position.y += droneSpeed; break;
@@ -382,6 +377,7 @@
 
 		renderer.setSize(width, height);
 	});
+   
     // === Animation Loop ===
     function animate() {
 		requestAnimationFrame(animate);
