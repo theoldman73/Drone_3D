@@ -61,10 +61,31 @@
 ">
     Current Camera: Main
 </div>
+
+<div id="latLonDisplay" style="
+    position: fixed;
+    top: 140px;
+    left: 20px;
+    color: white;
+    background: rgba(0,0,0,0.5);
+    padding: 8px 12px;
+    font-family: monospace;
+    font-size: 14px;
+    z-index: 1000;
+    border-radius: 4px;
+">
+    Latitude: 0.00°, Longitude: 0.00°
+</div>
+
   <!-- Three.js Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/ColladaLoader.js"></script>
+  <!-- Add Turf.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <script>
+	//--- Info : GIS
+	const originLat = 47.924569;
+	const originLon = 29.271990;	
     // === Scene Setup ===
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -115,7 +136,7 @@
 
     // === Load Stadium Model ===
     const loader = new THREE.ColladaLoader();
-    loader.load('./models/stadium-v6.dae', collada => {
+    loader.load('./models/stadium-v7.dae', collada => {
       stadium = collada.scene;
       stadium.scale.set(0.1, 0.1, 0.1);
 	  //stadium.position.set(0, -50, 30);
@@ -183,7 +204,83 @@
       setTimeout(() => msg.style.display = 'none', 2000);
     }
 
-    // === Keyboard Controls ===
+	//--- Info : WGS84
+	//--- Info : Assume 1 unit in your Three.js scene = 1 meter (adjust scale as needed):
+	function localToMeters(position, scale = 1) {
+		return {
+			x: position.x * scale,
+			y: position.y * scale,
+			z: position.z * scale
+		};
+	}	
+	
+	function localToLatLon(localPosition, originLat, originLon, scale = 1) {
+		const offset = localToMeters(localPosition, scale);
+
+		// Create a Turf point at the origin
+		const originPoint = turf.point([originLon, originLat]);
+
+		// Move east (x) and north (z) using Turf
+		let eastPoint = turf.destination(originPoint, offset.x / 1000, 90, { units: 'kilometers' });//kilometers
+		let finalPoint = turf.destination(eastPoint, offset.z / 1000, 0, { units: 'kilometers' });//kilometers
+
+		return {
+			lat: finalPoint.geometry.coordinates[1] - 0.000910,  
+			lon: finalPoint.geometry.coordinates[0]
+		};
+	}	
+	
+	function lonLatToVector3(lon, lat) {
+		const refLon = 47.9232072212356;
+		const refLat = 29.2730411402628;
+		const refX = -23.150;
+		const refZ = -20.610;
+
+		const A = 15695.56;  // Scale for longitude in x-direction
+		const B = 354.3;     // Cross-effect of latitude on x
+		const C = 59.56;     // Cross-effect of longitude on z
+		const D = -17130.6;  // Scale for latitude in z-direction
+
+		const dlon = lon - refLon;
+		const dlat = lat - refLat;
+
+		const x = refX + A * dlon + B * dlat;
+		const z = refZ + C * dlon + D * dlat;
+
+		return new THREE.Vector3(x, 0, z);
+	}	
+	
+	function vector3ToLonLat(x, z) {
+		const refLon = 47.9232072212356;
+		const refLat = 29.2730411402628;
+		const refX = -23.150;
+		const refZ = -20.610;
+
+		const A = 15695.56;
+		const B = 354.3;
+		const C = 59.56;
+		const D = -17130.6;
+
+		const a = A;
+		const b = B;
+		const c = C;
+		const d = D;
+
+		const dx = x - refX;
+		const dz = z - refZ;
+
+		const det = a * d - b * c;
+
+		const dlon = (d * dx - b * dz) / det;
+		const dlat = (a * dz - c * dx) / det;
+
+		const lon = refLon + dlon;
+		const lat = refLat + dlat;
+
+		return { lon, lat };
+	}	
+	
+	// === Keyboard Controls ===
     document.addEventListener('keydown', event => {
 		const cameraNames = ['Main', 'Cam1', 'Cam2','Cam3', 'cam4' , 'Drone' ];
 		const speed = 0.01;
@@ -243,7 +340,12 @@
 			document.getElementById('positionDisplay').textContent =
 			`Drone Position: (${pos.x.toFixed(3)}, ${pos.y.toFixed(3)}, ${pos.z.toFixed(3)})`;
 		}	 
-		
+		//--- info : WG84
+		if (drone) {
+			//const { lat, lon } = localToLatLon(drone.position, originLat, originLon, -10.8); //--- Info : -10.8
+			const { lat, lon } =  vector3ToLonLat(drone.position.x,drone.position.z);
+			document.getElementById('latLonDisplay').textContent = `Latitude: ${lon.toFixed(6)}°, Longitude: ${lat.toFixed(6)}°`;	
+		}		
 		// Use current camera
 		if (cameras[currentCameraIndex]) {
 			renderer.render(scene, cameras[currentCameraIndex]);
